@@ -21,6 +21,8 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Random random = new Random();
 
+    private PaymentDataService paymentDataService = new PaymentDataService();
+
     private final List<String> provinces = List.of(
             "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin", "Aydın", "Balıkesir",
             "Bilecik", "Bingöl", "Bitlis", "Bolu", "Burdur", "Bursa", "Çanakkale", "Çankırı", "Çorum", "Denizli",
@@ -50,7 +52,15 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
             public void run() {
                 generateAndSendData();
             }
-        }, 0, 200); // Generate data every 0.2 seconds
+        }, 0, 2000); // Generate data every 0.2 seconds
+
+        Timer updateTimer = new Timer(true);
+        updateTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                paymentDataService.updateQueues();
+            }
+        }, 0, 60000); // Update queues every minute
     }
 
     private void generateAndSendData() {
@@ -58,15 +68,24 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         int amount = random.nextInt(1000) + 1; // Random amount between 1 and 1000
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
-        DataMessage dataMessage = new DataMessage(city, amount, timestamp);
+        PaymentData paymentData = new PaymentData(city, amount, LocalDateTime.now());
+        DataMessage dataMessage = new DataMessage(city,
+                                                    amount, timestamp,
+                                                    paymentDataService.getLastDayPaymentSum(),
+                                                    paymentDataService.getLastOneHourPaymentSum(),
+                                                    paymentDataService.getPaymentCounterDay(),
+                                                    paymentDataService.getPaymentCounterHour());
 
         try {
             String jsonMessage = objectMapper.writeValueAsString(dataMessage);
             System.out.println("Sending data: " + jsonMessage); // Print to console
             TextMessage textMessage = new TextMessage(jsonMessage);
+            paymentDataService.addPaymentToQueues(paymentData);
             for (WebSocketSession session : sessions) {
                 if (session.isOpen()) {
                     session.sendMessage(textMessage);
+                    // Add payment data to queues
+
                 }
             }
         } catch (IOException e) {
@@ -78,11 +97,20 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         public String city;
         public int amount;
         public String timestamp;
+        public int lastDayPaymentSum;
+        public int lastOneHourPaymentSum;
+        public int paymentCounterDay;
+        public int paymentCounterHour;
 
-        public DataMessage(String city, int amount, String timestamp) {
+        public DataMessage(String city, int amount, String timestamp, int lastDayPaymentSum,
+                           int lastOneHourPaymentSum, int paymentCounterDay, int paymentCounterHour) {
             this.city = city;
             this.amount = amount;
             this.timestamp = timestamp;
+            this.lastDayPaymentSum = lastDayPaymentSum;
+            this.lastOneHourPaymentSum = lastOneHourPaymentSum;
+            this.paymentCounterDay = paymentCounterDay;
+            this.paymentCounterHour = paymentCounterHour;
         }
     }
 }

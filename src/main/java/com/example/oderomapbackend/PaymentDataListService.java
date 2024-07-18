@@ -1,5 +1,6 @@
 package com.example.oderomapbackend;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -16,7 +17,7 @@ public class PaymentDataListService {
 
             int rand_int = rand.nextInt(1000);
 
-            PaymentData data = new PaymentData(cities.get(i % cities.size()), rand_int);
+            PaymentData data = new PaymentData(cities.get(i % cities.size()), rand_int, LocalDateTime.now());
 
             paymentDataList.setPaymentDataList(data);
         }
