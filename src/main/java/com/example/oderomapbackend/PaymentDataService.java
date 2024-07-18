@@ -6,6 +6,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Data
 public class PaymentDataService {
@@ -17,6 +19,7 @@ public class PaymentDataService {
 
     private Queue<PaymentData> queueLastHour;
     private Queue<PaymentData> queueLastDay;
+    private final Lock lock = new ReentrantLock();
 
     public PaymentDataService() {
         this.lastOneHourPaymentSum = 0;
@@ -28,41 +31,52 @@ public class PaymentDataService {
     }
 
     public void addPaymentToQueues(PaymentData paymentData) {
-        queueLastDay.add(paymentData);
-        queueLastHour.add(paymentData);
-        lastDayPaymentSum += paymentData.getAmount();
-        System.out.println("----------" +  lastDayPaymentSum);
-        lastOneHourPaymentSum += paymentData.getAmount();
-        paymentCounterDay++;
-        paymentCounterHour++;
+        lock.lock();
+        try {
+            System.out.println("Before adding: "  + queueLastHour.size() + ", " + lastOneHourPaymentSum);
+            queueLastDay.add(paymentData);
+            queueLastHour.add(paymentData);
+            lastDayPaymentSum += paymentData.getAmount();
+            lastOneHourPaymentSum += paymentData.getAmount();
+            paymentCounterDay++;
+            paymentCounterHour++;
+            System.out.println("After adding: " + queueLastHour.size() + ", " + lastOneHourPaymentSum);
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public void updateQueues(){
+    public void updateQueues() {
 
+        lock.lock();
+        try {
+            System.out.println("Before updating: " +  queueLastHour.size() + ", " + (!queueLastHour.isEmpty() ? queueLastHour.peek().getAmount() : 0));
+            while (!queueLastDay.isEmpty()) {
+                Duration duration = Duration.between(queueLastDay.peek().getTime(), LocalDateTime.now());
 
-        while(!queueLastDay.isEmpty()){
-            Duration duration = Duration.between(queueLastDay.peek().getTime(), LocalDateTime.now());
+                if (duration.abs().toHours() >= 24) {
+                    lastDayPaymentSum -= queueLastDay.peek().getAmount();
+                    paymentCounterDay--;
+                    queueLastDay.remove();
+                } else {
+                    break;
+                }
+            }
 
-            if(duration.abs().toHours() >= 24){
-                lastDayPaymentSum -= queueLastDay.peek().getAmount();
-                paymentCounterDay--;
-                queueLastDay.remove();
+            while (!queueLastHour.isEmpty()) {
+                Duration duration = Duration.between(queueLastHour.peek().getTime(), LocalDateTime.now());
+                if (duration.abs().toSeconds() >= 3) {
+                    lastOneHourPaymentSum -= queueLastHour.peek().getAmount();
+                    paymentCounterHour--;
+                    queueLastHour.remove();
+                } else {
+                    break;
+                }
+            }
 
-            }
-            else{
-                break;
-            }
-        }
-        while(!queueLastHour.isEmpty()){
-            Duration duration = Duration.between(queueLastHour.peek().getTime(), LocalDateTime.now());
-            if(duration.abs().toHours() >= 1){
-                lastOneHourPaymentSum -= queueLastHour.peek().getAmount();
-                paymentCounterHour--;
-                queueLastHour.remove();
-            }
-            else{
-                break;
-            }
+            System.out.println("After updating: " + queueLastHour.size() + ", " + lastOneHourPaymentSum);
+        } finally {
+            lock.unlock();
         }
     }
 }

@@ -52,7 +52,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
             public void run() {
                 generateAndSendData();
             }
-        }, 0, 2000); // Generate data every 0.2 seconds
+        }, 0, 1000); // Generate data every 0.2 seconds
 
         Timer updateTimer = new Timer(true);
         updateTimer.scheduleAtFixedRate(new TimerTask() {
@@ -60,7 +60,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
             public void run() {
                 paymentDataService.updateQueues();
             }
-        }, 0, 60000); // Update queues every minute
+        }, 0, 3000); // Update queues every 5 sec
     }
 
     private void generateAndSendData() {
