@@ -52,7 +52,7 @@ public class PaymentDataServiceWithQueue {
         try {
             System.out.println("Before updating: " +  queueLastHour.size() + ", " + (!queueLastHour.isEmpty() ? queueLastHour.peek().getAmount() : 0));
             while (!queueLastDay.isEmpty()) {
-                Duration duration = Duration.between(queueLastDay.peek().getTime(), LocalDateTime.now());
+                Duration duration = Duration.ofMillis(System.currentTimeMillis() - (queueLastDay.peek() != null ?  queueLastDay.peek().getTimestamp() : 0));
 
                 if (duration.abs().toHours() >= 24) {
                     lastDayPaymentSum -= queueLastDay.peek().getAmount();
@@ -64,7 +64,7 @@ public class PaymentDataServiceWithQueue {
             }
 
             while (!queueLastHour.isEmpty()) {
-                Duration duration = Duration.between(queueLastHour.peek().getTime(), LocalDateTime.now());
+                Duration duration = Duration.ofMillis(System.currentTimeMillis() - (queueLastHour.peek() != null ?  queueLastHour.peek().getTimestamp() : 0));
                 if (duration.abs().toSeconds() >= 3) {
                     lastOneHourPaymentSum -= queueLastHour.peek().getAmount();
                     paymentCounterHour--;

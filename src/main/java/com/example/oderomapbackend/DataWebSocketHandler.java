@@ -63,7 +63,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         updateTimer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
-                executorService.submit(paymentDataService::updateQueues);
+                executorService.submit(paymentDataService::cleanupOldDataHour);
             }
         }, 0, 3000); // Update queues every 3 seconds
     }
@@ -71,16 +71,16 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
     private void generateAndSendData() {
         String city = provinces.get(random.nextInt(provinces.size()));
         int amount = random.nextInt(1000) + 1; // Random amount between 1 and 1000
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        long timestamp = System.currentTimeMillis();
 
-        PaymentData paymentData = new PaymentData(city, amount, LocalDateTime.now());
+        PaymentData paymentData = new PaymentData(city, amount, timestamp);
         DataMessage dataMessage = new DataMessage(city, amount, timestamp,
                 paymentDataService.getLastDayPaymentSum(),
-                paymentDataService.getLastOneHourPaymentSum(),
+                paymentDataService.getLastHourPaymentSum(),
                 paymentDataService.getPaymentCounterDay(),
                 paymentDataService.getPaymentCounterHour());
 
-        executorService.submit(() -> paymentDataService.addPaymentToQueues(paymentData));
+        executorService.submit(() -> paymentDataService.addData(paymentData.getAmount(), paymentData.getTimestamp()));
 
         try {
             String jsonMessage = objectMapper.writeValueAsString(dataMessage);
@@ -99,13 +99,13 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
     private static class DataMessage {
         public String city;
         public int amount;
-        public String timestamp;
+        public long timestamp;
         public int lastDayPaymentSum;
         public int lastOneHourPaymentSum;
         public int paymentCounterDay;
         public int paymentCounterHour;
 
-        public DataMessage(String city, int amount, String timestamp, int lastDayPaymentSum,
+        public DataMessage(String city, int amount, long timestamp, int lastDayPaymentSum,
                            int lastOneHourPaymentSum, int paymentCounterDay, int paymentCounterHour) {
             this.city = city;
             this.amount = amount;
