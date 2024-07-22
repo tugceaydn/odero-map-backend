@@ -17,6 +17,7 @@ import java.util.TimerTask;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class DataWebSocketHandler extends TextWebSocketHandler {
 
@@ -57,7 +58,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
             public void run() {
                 generateAndSendData();
             }
-        }, 0, 2000); // Generate data every 1 second
+        }, 0, 200); // Generate data every 1 second
 
         Timer updateTimer = new Timer(true);
         updateTimer.scheduleAtFixedRate(new TimerTask() {
@@ -73,29 +74,47 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         int amount = random.nextInt(1000) + 1; // Random amount between 1 and 1000
         long timestamp = System.currentTimeMillis();
 
-        PaymentData paymentData = new PaymentData(city, amount, timestamp);
+        PaymentData paymentData1 = new PaymentData(city, amount, timestamp);
 
-        paymentDataService.addData(paymentData);
-        paymentDataService.addData(paymentData);
+        paymentDataService.addData(paymentData1);
 
-        DataMessage dataMessage = new DataMessage(city, amount, timestamp,
+        DataMessage dataMessage1 = new DataMessage(city, amount, timestamp,
+                paymentDataService.getLastDayPaymentSum(),
+                paymentDataService.getLastOneHourPaymentSum(),
+                paymentDataService.getPaymentCounterDay(),
+                paymentDataService.getPaymentCounterHour());
+
+
+        PaymentData paymentData2 = new PaymentData(city, (amount + 100), timestamp);
+        paymentDataService.addData(paymentData2);
+
+        DataMessage dataMessage2 = new DataMessage(city, amount + 100, timestamp,
                 paymentDataService.getLastDayPaymentSum(),
                 paymentDataService.getLastOneHourPaymentSum(),
                 paymentDataService.getPaymentCounterDay(),
                 paymentDataService.getPaymentCounterHour());
 
         try {
-            String jsonMessage = objectMapper.writeValueAsString(dataMessage);
-            System.out.println("Sending data: " + jsonMessage); // Print to console
-            TextMessage textMessage = new TextMessage(jsonMessage);
+            String jsonMessage1 = objectMapper.writeValueAsString(dataMessage1);
+            System.out.println("Sending data: " + jsonMessage1); // Print to console
+            TextMessage textMessage1 = new TextMessage(jsonMessage1);
+
+            String jsonMessage2 = objectMapper.writeValueAsString(dataMessage2);
+            System.out.println("Sending data: " + jsonMessage2); // Print to console
+            TextMessage textMessage2 = new TextMessage(jsonMessage2);
             for (WebSocketSession session : sessions) {
                 if (session.isOpen()) {
-                    session.sendMessage(textMessage);
+                    session.sendMessage(textMessage1);
+//                    TimeUnit.SECONDS.sleep(1);
+                    session.sendMessage(textMessage2);
                 }
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
+//        catch (InterruptedException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 
     private static class DataMessage {
