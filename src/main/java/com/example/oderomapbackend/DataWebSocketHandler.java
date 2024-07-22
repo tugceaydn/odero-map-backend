@@ -38,7 +38,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
             "Düzce"
     );
 
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
+//    private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -57,30 +57,32 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
             public void run() {
                 generateAndSendData();
             }
-        }, 0, 1000); // Generate data every 1 second
+        }, 0, 2000); // Generate data every 1 second
 
         Timer updateTimer = new Timer(true);
         updateTimer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
-                executorService.submit(paymentDataService::updateQueues);
+                paymentDataService.cleanupOldData();
             }
-        }, 0, 3000); // Update queues every 3 seconds
+        }, 0, 5000); // Update queues every 3 seconds
     }
 
     private void generateAndSendData() {
         String city = provinces.get(random.nextInt(provinces.size()));
         int amount = random.nextInt(1000) + 1; // Random amount between 1 and 1000
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        long timestamp = System.currentTimeMillis();
 
-        PaymentData paymentData = new PaymentData(city, amount, LocalDateTime.now());
+        PaymentData paymentData = new PaymentData(city, amount, timestamp);
+
+        paymentDataService.addData(paymentData);
+        paymentDataService.addData(paymentData);
+
         DataMessage dataMessage = new DataMessage(city, amount, timestamp,
                 paymentDataService.getLastDayPaymentSum(),
                 paymentDataService.getLastOneHourPaymentSum(),
                 paymentDataService.getPaymentCounterDay(),
                 paymentDataService.getPaymentCounterHour());
-
-        executorService.submit(() -> paymentDataService.addPaymentToQueues(paymentData));
 
         try {
             String jsonMessage = objectMapper.writeValueAsString(dataMessage);
@@ -99,13 +101,13 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
     private static class DataMessage {
         public String city;
         public int amount;
-        public String timestamp;
+        public long timestamp;
         public int lastDayPaymentSum;
         public int lastOneHourPaymentSum;
         public int paymentCounterDay;
         public int paymentCounterHour;
 
-        public DataMessage(String city, int amount, String timestamp, int lastDayPaymentSum,
+        public DataMessage(String city, int amount, long timestamp, int lastDayPaymentSum,
                            int lastOneHourPaymentSum, int paymentCounterDay, int paymentCounterHour) {
             this.city = city;
             this.amount = amount;
