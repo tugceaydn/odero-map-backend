@@ -1,82 +1,130 @@
 package com.example.oderomapbackend;
 
+//import ch.qos.logback.core.joran.sanity.Pair;
+import org.apache.commons.lang3.tuple.Pair;
 import lombok.Data;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
 
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.AbstractMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Data
+@Service
 public class PaymentDataService {
 
     private int lastOneHourPaymentSum;
     private int lastDayPaymentSum;
-    private int paymentCounterDay;
     private int paymentCounterHour;
+    private int paymentCounterDay;
 
-    private Queue<PaymentData> queueLastHour;
-    private Queue<PaymentData> queueLastDay;
-    private final Lock lock = new ReentrantLock();
+    private static final int HOURSEGMENTS = 5;
+    private static final int DAYSEGMENTS = 15;
+    private ConcurrentHashMap<Integer, Pair<Integer, Long>> dataMapHour = new ConcurrentHashMap<>(HOURSEGMENTS);
+    private ConcurrentHashMap<Integer, Pair<Integer, Long>> dataMapDay = new ConcurrentHashMap<>(DAYSEGMENTS);
 
     public PaymentDataService() {
         this.lastOneHourPaymentSum = 0;
         this.lastDayPaymentSum = 0;
-        this.queueLastDay = new LinkedList<>();
-        this.queueLastHour = new LinkedList<>();
-        this.paymentCounterDay = 0;
         this.paymentCounterHour = 0;
+        this.paymentCounterDay = 0;
     }
 
-    public void addPaymentToQueues(PaymentData paymentData) {
-        lock.lock();
-        try {
-            System.out.println("Before adding: "  + queueLastHour.size() + ", " + lastOneHourPaymentSum);
-            queueLastDay.add(paymentData);
-            queueLastHour.add(paymentData);
-            lastDayPaymentSum += paymentData.getAmount();
-            lastOneHourPaymentSum += paymentData.getAmount();
-            paymentCounterDay++;
-            paymentCounterHour++;
-            System.out.println("After adding: " + queueLastHour.size() + ", " + lastOneHourPaymentSum);
-        } finally {
-            lock.unlock();
+    public void addData(PaymentData paymentData) {
+        int hourSegment = getHourSegment(paymentData.getTimestamp());
+        int daySegment = getDaySegment(paymentData.getTimestamp());
+
+        Pair<Integer, Long> existingDataHour = dataMapHour.get(hourSegment);
+        Pair<Integer, Long> existingDataDay = dataMapDay.get(daySegment);
+
+
+        if (existingDataHour != null && (existingDataHour.getRight() / 1000) == (paymentData.getTimestamp() / 1000)) {
+            // Same second, update amount
+            System.out.println("ustune ekle hour" + paymentData.getAmount());
+            dataMapHour.put(hourSegment, Pair.of(existingDataHour.getLeft() + paymentData.getAmount(), existingDataHour.getRight()));
+        } else {
+            // Different second, replace with new data
+            System.out.println("ustune yaz hour" + paymentData.getAmount());
+            dataMapHour.put(hourSegment, Pair.of(paymentData.getAmount(), paymentData.getTimestamp()));
         }
+
+        if (existingDataDay != null && (existingDataDay.getRight() / 1000) == (paymentData.getTimestamp() / 1000)) {
+            // Same second, update amount
+            System.out.println("ustune ekle day" + paymentData.getAmount());
+            dataMapDay.put(daySegment, Pair.of(existingDataDay.getLeft() + paymentData.getAmount(), existingDataDay.getRight()));
+        } else {
+            // Different second, replace with new data
+            System.out.println("ustune yaz day" + paymentData.getAmount());
+            dataMapDay.put(daySegment, Pair.of(paymentData.getAmount(), paymentData.getTimestamp()));
+        }
+
+        lastOneHourPaymentSum += paymentData.getAmount();
+        lastDayPaymentSum += paymentData.getAmount();
+        paymentCounterDay++;
+        paymentCounterHour++;
+
+        System.out.println("----hour map after adding----");
+        printMap();
+
+        System.out.println("----day map after adding----");
+        printMapDay();
     }
 
-    public void updateQueues() {
+    public void cleanupOldData() {
+        long currentTime = System.currentTimeMillis();
+        System.out.println("Running cleanupOldData..."); // For debugging
 
-        lock.lock();
-        try {
-            System.out.println("Before updating: " +  queueLastHour.size() + ", " + (!queueLastHour.isEmpty() ? queueLastHour.peek().getAmount() : 0));
-            while (!queueLastDay.isEmpty()) {
-                Duration duration = Duration.between(queueLastDay.peek().getTime(), LocalDateTime.now());
+        for (int i = 0; i < DAYSEGMENTS; i++) {
 
-                if (duration.abs().toHours() >= 24) {
-                    lastDayPaymentSum -= queueLastDay.peek().getAmount();
-                    paymentCounterDay--;
-                    queueLastDay.remove();
-                } else {
-                    break;
-                }
-            }
-
-            while (!queueLastHour.isEmpty()) {
-                Duration duration = Duration.between(queueLastHour.peek().getTime(), LocalDateTime.now());
-                if (duration.abs().toSeconds() >= 3) {
-                    lastOneHourPaymentSum -= queueLastHour.peek().getAmount();
+            if(i < HOURSEGMENTS) {
+                Pair<Integer, Long> dataHour = dataMapHour.get(i);
+                System.out.println("hour Segment " + i + ": " + dataHour);
+                if (dataHour != null && (currentTime - dataHour.getRight()) > HOURSEGMENTS * 1000) {
+                    System.out.println("Cleaning up hour segment: " + i); // For debugging
+                    lastOneHourPaymentSum -= dataHour.getLeft();
+                    dataMapHour.remove(i);
                     paymentCounterHour--;
-                    queueLastHour.remove();
-                } else {
-                    break;
                 }
             }
 
-            System.out.println("After updating: " + queueLastHour.size() + ", " + lastOneHourPaymentSum);
-        } finally {
-            lock.unlock();
+            Pair<Integer, Long> dataDay = dataMapDay.get(i);
+            System.out.println("day Segment " + i + ": " + dataDay); // For debugging
+
+            if (dataDay != null && (currentTime - dataDay.getRight()) > DAYSEGMENTS * 1000) {
+                System.out.println("Cleaning up day segment: " + i); // For debugging
+                lastDayPaymentSum -= dataDay.getLeft();
+                dataMapDay.remove(i);
+                paymentCounterDay--;
+            }
         }
+
+        System.out.println("----hour map after delete----");
+        printMap();
+
+        System.out.println("----day map after delete----");
+        printMapDay();
+    }
+
+    private int getHourSegment(long timestamp) {
+        return (int) ((timestamp / 1000) % HOURSEGMENTS);
+    }
+
+    private int getDaySegment(long timestamp) {
+        return (int) ((timestamp / 1000) % DAYSEGMENTS);
+    }
+
+    public void printMap() {
+        dataMapHour.forEach((k, v) -> {
+            if (v != null) {
+                System.out.println("Segment " + k + ": " + v.getKey() + " at " + v.getValue());
+            }
+        });
+    }
+    public void printMapDay() {
+        dataMapDay.forEach((k, v) -> {
+            if (v != null) {
+                System.out.println("Segment " + k + ": " + v.getKey() + " at " + v.getValue());
+            }
+        });
     }
 }

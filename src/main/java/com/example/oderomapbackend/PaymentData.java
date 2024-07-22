@@ -10,5 +10,5 @@ import java.time.LocalDateTime;
 public class PaymentData {
     private String city;
     private int amount;
-    private LocalDateTime time;
+    private long timestamp;
 }
