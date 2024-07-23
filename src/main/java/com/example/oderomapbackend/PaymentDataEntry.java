@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class PaymentDataEntry {
-    private int amount;
+    private double amount;
     private long timestamp;
     private int count;
 }
