@@ -9,6 +9,6 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class PaymentData {
     private String city;
-    private int amount;
+    private double amount;
     private long timestamp;
 }

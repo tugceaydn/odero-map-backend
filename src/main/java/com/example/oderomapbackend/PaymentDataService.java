@@ -11,15 +11,17 @@ import java.time.LocalDate;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.DoubleAdder;
 
 @Data
 @Service
 public class PaymentDataService {
 
-    private int lastOneHourPaymentSum;
-    private int lastDayPaymentSum;
-    private int paymentCounterHour;
-    private int paymentCounterDay;
+    private DoubleAdder lastOneHourPaymentSum;
+    private DoubleAdder lastDayPaymentSum;
+    private AtomicInteger paymentCounterHour;
+    private AtomicInteger paymentCounterDay;
 
     private static final int HOURSEGMENTS = 5;
     private static final int DAYSEGMENTS = 15;
@@ -27,19 +29,19 @@ public class PaymentDataService {
     private ConcurrentHashMap<Integer, PaymentDataEntry> dataMapDay = new ConcurrentHashMap<>(DAYSEGMENTS);
 
     public PaymentDataService() {
-        this.lastOneHourPaymentSum = 0;
-        this.lastDayPaymentSum = 0;
-        this.paymentCounterHour = 0;
-        this.paymentCounterDay = 0;
+        this.lastOneHourPaymentSum = new DoubleAdder();
+        this.lastDayPaymentSum = new DoubleAdder();
+        this.paymentCounterHour = new AtomicInteger();
+        this.paymentCounterDay = new AtomicInteger();
     }
 
     public void addData(PaymentData paymentData) {
         System.out.println("Running adding..."); // For debugging
         int hourSegment = getHourSegment(paymentData.getTimestamp());
-        int daySegment = getDaySegment(paymentData.getTimestamp());
+//        int daySegment = getDaySegment(paymentData.getTimestamp());
 
         PaymentDataEntry existingDataHour = dataMapHour.get(hourSegment);
-        PaymentDataEntry existingDataDay = dataMapDay.get(daySegment);
+//        PaymentDataEntry existingDataDay = dataMapDay.get(daySegment);
 
 
         if (existingDataHour != null && (existingDataHour.getTimestamp() / 1000) == (paymentData.getTimestamp() / 1000)) {
@@ -54,8 +56,9 @@ public class PaymentDataService {
             // Different second, replace with new data
 //            System.out.println("ustune yaz hour " + paymentData.getAmount());
             if(existingDataHour != null) {
-                lastOneHourPaymentSum -= existingDataHour.getAmount();
-                paymentCounterHour -= existingDataHour.getCount();
+                lastOneHourPaymentSum.add(-existingDataHour.getAmount());
+
+                paymentCounterHour.addAndGet(-existingDataHour.getCount());
             }
             dataMapHour.put(hourSegment, new PaymentDataEntry(
                     paymentData.getAmount(),
@@ -64,34 +67,10 @@ public class PaymentDataService {
             ));
         }
 
-        if (existingDataDay != null && (existingDataDay.getTimestamp() / 1000) == (paymentData.getTimestamp() / 1000)) {
-            // Same second, update amount and count
-//            System.out.println("ustune ekle day " + paymentData.getAmount());
-            dataMapDay.put(daySegment, new PaymentDataEntry(
-                    existingDataDay.getAmount() + paymentData.getAmount(),
-                    existingDataDay.getTimestamp(),
-                    existingDataDay.getCount() + 1
-            ));
-        } else {
-            // Different second, replace with new data
-//            System.out.println("ustune yaz day " + paymentData.getAmount());
-            if(existingDataDay != null) {
-                lastDayPaymentSum -= existingDataDay.getAmount();
-//                paymentCounterDay--;
-                setPaymentCounterDay(getPaymentCounterDay() - 1);
-            }
-            dataMapDay.put(daySegment, new PaymentDataEntry(
-                    paymentData.getAmount(),
-                    paymentData.getTimestamp(),
-                    1
-            ));
-        }
-
-        lastOneHourPaymentSum += paymentData.getAmount();
-        lastDayPaymentSum += paymentData.getAmount();
-        paymentCounterHour++;
-//        paymentCounterDay++;
-        setPaymentCounterDay(getPaymentCounterDay() + 1);
+        lastOneHourPaymentSum.add(paymentData.getAmount());
+        lastDayPaymentSum.add(paymentData.getAmount());
+        paymentCounterHour.incrementAndGet();
+        paymentCounterDay.incrementAndGet();
 
 //        System.out.println("----hour map after adding----");
 //        printMap();
@@ -110,8 +89,8 @@ public class PaymentDataService {
             PaymentDataEntry dataHour = dataMapHour.get(i);
             if (dataHour != null && (currentTime - dataHour.getTimestamp()) > HOURSEGMENTS * 1000) {
                 System.out.println("Cleaning up hour segment: " + i + " amount " + dataHour.getAmount()); // For debugging
-                lastOneHourPaymentSum -= dataHour.getAmount();
-                paymentCounterHour -= dataHour.getCount();
+                lastOneHourPaymentSum.add(-dataHour.getAmount());
+                paymentCounterHour.addAndGet(-dataHour.getCount());
                 dataMapHour.remove(i);
             }
         }
@@ -121,17 +100,16 @@ public class PaymentDataService {
     }
 
     public void dailyCleanUp(){
-        System.out.println("lastday payment sum before clean: " + getLastDayPaymentSum());
-        System.out.println("lastday payment counter before clean: " + getPaymentCounterDay());
+        System.out.println("lastday payment sum before clean: " + lastDayPaymentSum.sum());
+        System.out.println("lastday payment counter before clean: " + paymentCounterDay.get());
 
         System.out.println("----------------------DAILY CLEANUPPPP----");
-        setLastDayPaymentSum(0);
-        setPaymentCounterDay(0);
+        lastDayPaymentSum.reset();
+        paymentCounterDay.set(0);
 
-        System.out.println("lastday payment sum after clean: " + getLastDayPaymentSum());
-        System.out.println("lastday payment counter after clean: " + getPaymentCounterDay());
-//
-//        printMapDay();
+        System.out.println("lastday payment sum after clean: " + lastDayPaymentSum.sum());
+        System.out.println("lastday payment counter after clean: " + paymentCounterDay.get());
+
     }
     private int getHourSegment(long timestamp) {
         return (int) ((timestamp / 1000) % HOURSEGMENTS);
@@ -139,14 +117,6 @@ public class PaymentDataService {
 
     private int getDaySegment(long timestamp) {
         return (int) ((timestamp / 1000) % DAYSEGMENTS);
-    }
-
-    private boolean isSameDay(long timestamp, long currentTime) {
-        long entryDate = TimeUnit.MILLISECONDS.toDays(timestamp);
-        long currentDate = TimeUnit.MILLISECONDS.toDays(currentTime);
-        System.out.println("entry date " + entryDate + " current date " + currentDate);
-
-        return entryDate == currentDate;
     }
 
     public void printMap() {

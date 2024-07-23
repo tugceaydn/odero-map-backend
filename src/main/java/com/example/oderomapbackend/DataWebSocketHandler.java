@@ -13,10 +13,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 public class DataWebSocketHandler extends TextWebSocketHandler {
 
@@ -40,6 +37,8 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
 
 //    private final ExecutorService executorService = Executors.newCachedThreadPool();
 
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(3);
+
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         sessions.add(session);
@@ -50,31 +49,41 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         sessions.remove(session);
     }
 
+//    public DataWebSocketHandler() {
+//        Timer timer = new Timer(true);
+//        timer.scheduleAtFixedRate(new TimerTask() {
+//            @Override
+//            public void run() {
+//                generateAndSendData();
+//            }
+//        }, 0, 200); // Generate data every 1 second
+//
+//        Timer updateTimer = new Timer(true);
+//        updateTimer.scheduleAtFixedRate(new TimerTask() {
+//            @Override
+//            public void run() {
+//                paymentDataService.cleanupOldData();
+//            }
+//        }, 0, 5000); // Update queues every 5 seconds
+//
+//        Timer dailyTimer = new Timer(true);
+//        dailyTimer.scheduleAtFixedRate(new TimerTask() {
+//            @Override
+//            public void run() {
+//                paymentDataService.dailyCleanUp();
+//                System.out.println("Initial Delay: " + getInitialDelay()); ;
+//            }
+//        }, 0,   10 * 1000); // 24 hours in milliseconds  24 * 60 * 60 * 1000
+//    }
+
     public DataWebSocketHandler() {
-        Timer timer = new Timer(true);
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                generateAndSendData();
-            }
-        }, 0, 200); // Generate data every 1 second
 
-        Timer updateTimer = new Timer(true);
-        updateTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                paymentDataService.cleanupOldData();
-            }
-        }, 0, 5000); // Update queues every 5 seconds
+        scheduler.scheduleAtFixedRate(this::generateAndSendData, 0, 200, TimeUnit.MILLISECONDS);
 
-        Timer dailyTimer = new Timer(true);
-        dailyTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                paymentDataService.dailyCleanUp();
-                System.out.println("Initial Delay: " + getInitialDelay()); ;
-            }
-        }, getInitialDelay(),  24 * 60 * 60 * 1000); // 24 hours in milliseconds
+        scheduler.scheduleAtFixedRate(paymentDataService::cleanupOldData, 0, 5, TimeUnit.SECONDS);
+
+        scheduler.scheduleAtFixedRate(paymentDataService::dailyCleanUp, getInitialDelay(), 24 * 60 * 60 * 1000, TimeUnit.MILLISECONDS);
+
     }
     private long getInitialDelay() {
         Calendar calendar = Calendar.getInstance();
@@ -94,9 +103,33 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         return midnight.getTime() - currentTime;
     }
 
+//    private long getInitialDelay() {
+//
+//        // Calculate delay until midnight
+//
+//        long currentMillis = System.currentTimeMillis();
+//
+//        long midnightMillis = java.time.LocalDateTime.now()
+//
+//                .toLocalDate()
+//
+//                .atStartOfDay()
+//
+//                .plusDays(1)
+//
+//                .atZone(java.time.ZoneId.systemDefault())
+//
+//                .toInstant()
+//
+//                .toEpochMilli();
+//
+//        return midnightMillis - currentMillis;
+//
+//    }
+
     private void generateAndSendData() {
         String city = provinces.get(random.nextInt(provinces.size()));
-        int amount = random.nextInt(1000) + 1; // Random amount between 1 and 1000
+        double amount = random.nextDouble() * 1000; // Random amount between 0 and 1000
         long timestamp = System.currentTimeMillis();
 
         PaymentData paymentData1 = new PaymentData(city, amount, timestamp);
@@ -104,20 +137,21 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         paymentDataService.addData(paymentData1);
 
         DataMessage dataMessage1 = new DataMessage(city, amount, timestamp,
-                paymentDataService.getLastDayPaymentSum(),
-                paymentDataService.getLastOneHourPaymentSum(),
-                paymentDataService.getPaymentCounterDay(),
-                paymentDataService.getPaymentCounterHour());
+
+                paymentDataService.getLastDayPaymentSum().sum(),
+                paymentDataService.getLastOneHourPaymentSum().sum(),
+                paymentDataService.getPaymentCounterDay().get(),
+                paymentDataService.getPaymentCounterHour().get());
 
 
         PaymentData paymentData2 = new PaymentData(city, (amount + 100), timestamp);
         paymentDataService.addData(paymentData2);
 
         DataMessage dataMessage2 = new DataMessage(city, amount + 100, timestamp,
-                paymentDataService.getLastDayPaymentSum(),
-                paymentDataService.getLastOneHourPaymentSum(),
-                paymentDataService.getPaymentCounterDay(),
-                paymentDataService.getPaymentCounterHour());
+                paymentDataService.getLastDayPaymentSum().sum(),
+                paymentDataService.getLastOneHourPaymentSum().sum(),
+                paymentDataService.getPaymentCounterDay().get(),
+                paymentDataService.getPaymentCounterHour().get());
 
         try {
             String jsonMessage1 = objectMapper.writeValueAsString(dataMessage1);
@@ -144,15 +178,15 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
 
     private static class DataMessage {
         public String city;
-        public int amount;
+        public double amount;
         public long timestamp;
-        public int lastDayPaymentSum;
-        public int lastOneHourPaymentSum;
+        public double lastDayPaymentSum;
+        public double lastOneHourPaymentSum;
         public int paymentCounterDay;
         public int paymentCounterHour;
 
-        public DataMessage(String city, int amount, long timestamp, int lastDayPaymentSum,
-                           int lastOneHourPaymentSum, int paymentCounterDay, int paymentCounterHour) {
+        public DataMessage(String city, double amount, long timestamp, double lastDayPaymentSum,
+                           double lastOneHourPaymentSum, int paymentCounterDay, int paymentCounterHour) {
             this.city = city;
             this.amount = amount;
             this.timestamp = timestamp;
