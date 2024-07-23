@@ -1,6 +1,8 @@
 // DataWebSocketHandler.java
 package com.example.oderomapbackend;
 
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -10,10 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Random;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -66,7 +65,33 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
             public void run() {
                 paymentDataService.cleanupOldData();
             }
-        }, 0, 5000); // Update queues every 3 seconds
+        }, 0, 5000); // Update queues every 5 seconds
+
+        Timer dailyTimer = new Timer(true);
+        dailyTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                paymentDataService.dailyCleanUp();
+                System.out.println("Initial Delay: " + getInitialDelay()); ;
+            }
+        }, getInitialDelay(),  24 * 60 * 60 * 1000); // 24 hours in milliseconds
+    }
+    private long getInitialDelay() {
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+
+        Date midnight = calendar.getTime();
+        long currentTime = System.currentTimeMillis();
+
+        if (midnight.getTime() < currentTime) {
+            calendar.add(Calendar.DAY_OF_MONTH, 1);
+            midnight = calendar.getTime();
+        }
+
+        return midnight.getTime() - currentTime;
     }
 
     private void generateAndSendData() {
