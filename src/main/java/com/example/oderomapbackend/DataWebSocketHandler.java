@@ -21,7 +21,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Random random = new Random();
 
-    private PaymentDataService paymentDataService = new PaymentDataService();
+    private final PaymentDataService paymentDataService = new PaymentDataService();
 
     private final List<String> provinces = List.of(
             "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin", "Aydın", "Balıkesir",
@@ -82,7 +82,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
 
         scheduler.scheduleAtFixedRate(paymentDataService::cleanupOldData, 0, 5, TimeUnit.SECONDS);
 
-        scheduler.scheduleAtFixedRate(paymentDataService::dailyCleanUp, getInitialDelay(), 24 * 60 * 60 * 1000, TimeUnit.MILLISECONDS);
+        scheduler.scheduleAtFixedRate(paymentDataService::dailyCleanUp, 0, 10 * 1000, TimeUnit.MILLISECONDS); // 24 * 60 * 60 * 1000  //initaildelay: getInitialDelay olmalı
 
     }
     private long getInitialDelay() {
@@ -104,76 +104,63 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
     }
 
 //    private long getInitialDelay() {
-//
 //        // Calculate delay until midnight
-//
 //        long currentMillis = System.currentTimeMillis();
-//
 //        long midnightMillis = java.time.LocalDateTime.now()
-//
 //                .toLocalDate()
-//
 //                .atStartOfDay()
-//
 //                .plusDays(1)
-//
 //                .atZone(java.time.ZoneId.systemDefault())
-//
 //                .toInstant()
-//
 //                .toEpochMilli();
-//
 //        return midnightMillis - currentMillis;
-//
 //    }
 
     private void generateAndSendData() {
-        String city = provinces.get(random.nextInt(provinces.size()));
-        double amount = random.nextDouble() * 1000; // Random amount between 0 and 1000
-        long timestamp = System.currentTimeMillis();
+        synchronized (paymentDataService) {
+            try {
+                String city = provinces.get(random.nextInt(provinces.size()));
+                double amount = random.nextDouble() * 1000; // Random amount between 0 and 1000
+                long timestamp = System.currentTimeMillis();
 
-        PaymentData paymentData1 = new PaymentData(city, amount, timestamp);
+                PaymentData paymentData1 = new PaymentData(city, amount, timestamp);
+                paymentDataService.addData(paymentData1);
 
-        paymentDataService.addData(paymentData1);
-
-        DataMessage dataMessage1 = new DataMessage(city, amount, timestamp,
-
-                paymentDataService.getLastDayPaymentSum().sum(),
-                paymentDataService.getLastOneHourPaymentSum().sum(),
-                paymentDataService.getPaymentCounterDay().get(),
-                paymentDataService.getPaymentCounterHour().get());
+                DataMessage dataMessage1 = new DataMessage(city, amount, timestamp,
+                        paymentDataService.getLastDayPaymentSum().sum(),
+                        paymentDataService.getLastOneHourPaymentSum().sum(),
+                        paymentDataService.getPaymentCounterDay().get(),
+                        paymentDataService.getPaymentCounterHour().get());
 
 
-        PaymentData paymentData2 = new PaymentData(city, (amount + 100), timestamp);
-        paymentDataService.addData(paymentData2);
+                PaymentData paymentData2 = new PaymentData(city, (amount + 100), timestamp);
+                paymentDataService.addData(paymentData2);
 
-        DataMessage dataMessage2 = new DataMessage(city, amount + 100, timestamp,
-                paymentDataService.getLastDayPaymentSum().sum(),
-                paymentDataService.getLastOneHourPaymentSum().sum(),
-                paymentDataService.getPaymentCounterDay().get(),
-                paymentDataService.getPaymentCounterHour().get());
+                DataMessage dataMessage2 = new DataMessage(city, amount + 100, timestamp,
+                        paymentDataService.getLastDayPaymentSum().sum(),
+                        paymentDataService.getLastOneHourPaymentSum().sum(),
+                        paymentDataService.getPaymentCounterDay().get(),
+                        paymentDataService.getPaymentCounterHour().get());
 
-        try {
-            String jsonMessage1 = objectMapper.writeValueAsString(dataMessage1);
-            System.out.println("Sending data: " + jsonMessage1); // Print to console
-            TextMessage textMessage1 = new TextMessage(jsonMessage1);
 
-            String jsonMessage2 = objectMapper.writeValueAsString(dataMessage2);
-            System.out.println("Sending data: " + jsonMessage2); // Print to console
-            TextMessage textMessage2 = new TextMessage(jsonMessage2);
-            for (WebSocketSession session : sessions) {
-                if (session.isOpen()) {
-                    session.sendMessage(textMessage1);
-//                    TimeUnit.SECONDS.sleep(1);
-                    session.sendMessage(textMessage2);
+                String jsonMessage1 = objectMapper.writeValueAsString(dataMessage1);
+                System.out.println("Sending data: " + jsonMessage1); // Print to console
+                TextMessage textMessage1 = new TextMessage(jsonMessage1);
+
+                String jsonMessage2 = objectMapper.writeValueAsString(dataMessage2);
+                System.out.println("Sending data: " + jsonMessage2); // Print to console
+                TextMessage textMessage2 = new TextMessage(jsonMessage2);
+                for (WebSocketSession session : sessions) {
+                    if (session.isOpen()) {
+                        session.sendMessage(textMessage1);
+                        //                    TimeUnit.SECONDS.sleep(1);
+                        session.sendMessage(textMessage2);
+                    }
                 }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
         }
-//        catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
     }
 
     private static class DataMessage {
