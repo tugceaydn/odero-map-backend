@@ -35,7 +35,7 @@ public class PaymentDataService {
         this.paymentCounterDay = new AtomicInteger();
     }
 
-    public void addData(PaymentData paymentData) {
+    public synchronized void addData(PaymentData paymentData) {
         System.out.println("Running adding..."); // For debugging
         int hourSegment = getHourSegment(paymentData.getTimestamp());
 //        int daySegment = getDaySegment(paymentData.getTimestamp());
@@ -79,7 +79,7 @@ public class PaymentDataService {
 //        printMapDay();
     }
 
-    public void cleanupOldData() {
+    public synchronized void cleanupOldData() {
         long currentTime = System.currentTimeMillis();
         System.out.println("Running cleanupOldData..."); // For debugging
 
@@ -99,7 +99,7 @@ public class PaymentDataService {
 
     }
 
-    public void dailyCleanUp(){
+    public synchronized void dailyCleanUp(){
         System.out.println("lastday payment sum before clean: " + lastDayPaymentSum.sum());
         System.out.println("lastday payment counter before clean: " + paymentCounterDay.get());
 
