@@ -29,7 +29,7 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
 
     public MerchantWebSocketHandler(PaymentDataService paymentDataService) {
         this.paymentDataService = paymentDataService;
-        scheduler.scheduleAtFixedRate(this::sendSortedMerchantData, 0, 200, TimeUnit.MILLISECONDS);
+//        scheduler.scheduleAtFixedRate(this::sendSortedMerchantData, 0, 200, TimeUnit.MILLISECONDS);
     }
 
     @Override
