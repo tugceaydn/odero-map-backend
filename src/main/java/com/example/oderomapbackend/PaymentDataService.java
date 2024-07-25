@@ -1,18 +1,14 @@
 package com.example.oderomapbackend;
 
-import org.apache.commons.lang3.tuple.Pair;
 import lombok.Data;
-import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAdder;
+import java.util.stream.Collectors;
+import java.util.LinkedHashMap;
 
 @Data
 @Service
@@ -28,6 +24,8 @@ public class PaymentDataService {
     private ConcurrentHashMap<Integer, PaymentDataEntry> dataMapHour = new ConcurrentHashMap<>(HOURSEGMENTS);
     private ConcurrentHashMap<Integer, PaymentDataEntry> dataMapDay = new ConcurrentHashMap<>(DAYSEGMENTS);
 
+    private ConcurrentHashMap<String, DoubleAdder> merchantTotals = new ConcurrentHashMap<>();
+
     public PaymentDataService() {
         this.lastOneHourPaymentSum = new DoubleAdder();
         this.lastDayPaymentSum = new DoubleAdder();
@@ -38,23 +36,17 @@ public class PaymentDataService {
     public synchronized void addData(PaymentData paymentData) {
         System.out.println("Running adding..."); // For debugging
         int hourSegment = getHourSegment(paymentData.getTimestamp());
-//        int daySegment = getDaySegment(paymentData.getTimestamp());
 
         PaymentDataEntry existingDataHour = dataMapHour.get(hourSegment);
-//        PaymentDataEntry existingDataDay = dataMapDay.get(daySegment);
 
 
         if (existingDataHour != null && (existingDataHour.getTimestamp() / 1000) == (paymentData.getTimestamp() / 1000)) {
-            // Same second, update amount and count
-//            System.out.println("ustune ekle hour " + paymentData.getAmount());
             dataMapHour.put(hourSegment, new PaymentDataEntry(
                     existingDataHour.getAmount() + paymentData.getAmount(),
                     existingDataHour.getTimestamp(),
                     existingDataHour.getCount() + 1
             ));
         } else {
-            // Different second, replace with new data
-//            System.out.println("ustune yaz hour " + paymentData.getAmount());
             if(existingDataHour != null) {
                 lastOneHourPaymentSum.add(-existingDataHour.getAmount());
 
@@ -72,11 +64,7 @@ public class PaymentDataService {
         paymentCounterHour.incrementAndGet();
         paymentCounterDay.incrementAndGet();
 
-//        System.out.println("----hour map after adding----");
-//        printMap();
-
-//        System.out.println("----day map after adding----");
-//        printMapDay();
+        merchantTotals.computeIfAbsent(paymentData.getMerchant(), k -> new DoubleAdder()).add(paymentData.getAmount());
     }
 
     public synchronized void cleanupOldData() {
@@ -95,8 +83,6 @@ public class PaymentDataService {
             }
         }
         System.out.println("----hour map after delete----");
-//        printMap();
-
     }
 
     public synchronized void dailyCleanUp(){
@@ -107,6 +93,8 @@ public class PaymentDataService {
         lastDayPaymentSum.reset();
         paymentCounterDay.set(0);
 
+        merchantTotals.clear();
+
         System.out.println("lastday payment sum after clean: " + lastDayPaymentSum.sum());
         System.out.println("lastday payment counter after clean: " + paymentCounterDay.get());
 
@@ -115,23 +103,15 @@ public class PaymentDataService {
         return (int) ((timestamp / 1000) % HOURSEGMENTS);
     }
 
-    private int getDaySegment(long timestamp) {
-        return (int) ((timestamp / 1000) % DAYSEGMENTS);
-    }
-
-    public void printMap() {
-        dataMapHour.forEach((k, v) -> {
-            if (v != null) {
-                System.out.println("Segment " + k + ": " + v.getAmount() + " at " + v.getTimestamp() + " count: " + v.getCount());
-            }
-        });
-    }
-
-    public void printMapDay() {
-        dataMapDay.forEach((k, v) -> {
-            if (v != null) {
-                System.out.println("Segment " + k + ": " + v.getAmount() + " at " + v.getTimestamp() + " count: " + v.getCount());
-            }
-        });
+    public Map<String, Double> getSortedMerchantTotals() {
+        return merchantTotals.entrySet()
+                .stream()
+                .sorted((entry1, entry2) -> Double.compare(entry2.getValue().sum(), entry1.getValue().sum()))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().sum(),
+                        (e1, e2) -> e1,
+                        LinkedHashMap::new
+                ));
     }
 }

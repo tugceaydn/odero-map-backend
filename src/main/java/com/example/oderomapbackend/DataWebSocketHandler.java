@@ -1,8 +1,5 @@
-// DataWebSocketHandler.java
 package com.example.oderomapbackend;
 
-import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -10,8 +7,6 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -21,7 +16,8 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Random random = new Random();
 
-    private final PaymentDataService paymentDataService = new PaymentDataService();
+    private final PaymentDataService paymentDataService;
+
 
     private final List<String> provinces = List.of(
             "Adana", "Adıyaman", "Afyonkarahisar", "Ağrı", "Amasya", "Ankara", "Antalya", "Artvin", "Aydın", "Balıkesir",
@@ -35,7 +31,9 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
             "Düzce"
     );
 
-//    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final List<String> merchants = List.of(
+            "Arçelik", "Koç", "Beko", "Vestel", "Siemens", "Bosch"
+    );
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(3);
 
@@ -49,34 +47,9 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         sessions.remove(session);
     }
 
-//    public DataWebSocketHandler() {
-//        Timer timer = new Timer(true);
-//        timer.scheduleAtFixedRate(new TimerTask() {
-//            @Override
-//            public void run() {
-//                generateAndSendData();
-//            }
-//        }, 0, 200); // Generate data every 1 second
-//
-//        Timer updateTimer = new Timer(true);
-//        updateTimer.scheduleAtFixedRate(new TimerTask() {
-//            @Override
-//            public void run() {
-//                paymentDataService.cleanupOldData();
-//            }
-//        }, 0, 5000); // Update queues every 5 seconds
-//
-//        Timer dailyTimer = new Timer(true);
-//        dailyTimer.scheduleAtFixedRate(new TimerTask() {
-//            @Override
-//            public void run() {
-//                paymentDataService.dailyCleanUp();
-//                System.out.println("Initial Delay: " + getInitialDelay()); ;
-//            }
-//        }, 0,   10 * 1000); // 24 hours in milliseconds  24 * 60 * 60 * 1000
-//    }
+    public DataWebSocketHandler(PaymentDataService paymentDataService) {
 
-    public DataWebSocketHandler() {
+        this.paymentDataService = paymentDataService;
 
         scheduler.scheduleAtFixedRate(this::generateAndSendData, 0, 200, TimeUnit.MILLISECONDS);
 
@@ -120,10 +93,11 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         synchronized (paymentDataService) {
             try {
                 String city = provinces.get(random.nextInt(provinces.size()));
+                String merchant = merchants.get(random.nextInt(merchants.size()));
                 double amount = random.nextDouble() * 1000; // Random amount between 0 and 1000
                 long timestamp = System.currentTimeMillis();
 
-                PaymentData paymentData1 = new PaymentData(city, amount, timestamp);
+                PaymentData paymentData1 = new PaymentData(city, merchant, amount, timestamp);
                 paymentDataService.addData(paymentData1);
 
                 DataMessage dataMessage1 = new DataMessage(city, amount, timestamp,
@@ -133,10 +107,10 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
                         paymentDataService.getPaymentCounterHour().get());
 
 
-                PaymentData paymentData2 = new PaymentData(city, (amount + 100), timestamp);
+                PaymentData paymentData2 = new PaymentData(city, merchant, (amount + 100), timestamp);
                 paymentDataService.addData(paymentData2);
 
-                DataMessage dataMessage2 = new DataMessage(city, amount + 100, timestamp,
+                DataMessage dataMessage2 = new DataMessage(city,amount + 100, timestamp,
                         paymentDataService.getLastDayPaymentSum().sum(),
                         paymentDataService.getLastOneHourPaymentSum().sum(),
                         paymentDataService.getPaymentCounterDay().get(),
@@ -163,7 +137,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    private static class DataMessage {
+    static class DataMessage {
         public String city;
         public double amount;
         public long timestamp;
