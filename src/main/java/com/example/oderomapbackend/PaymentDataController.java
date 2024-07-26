@@ -9,6 +9,8 @@ public class PaymentDataController {
 
     @Autowired
     private PaymentDataService paymentDataService;
+    @Autowired
+    private DataWebSocketHandler dataWebSocketHandler;
 
     @PostMapping
     public void receivePaymentData(@RequestBody PaymentDataRequest paymentDataRequest) {
@@ -26,8 +28,11 @@ public class PaymentDataController {
                 paymentDataRequest.getIp()
         );
 
-        // Add data to the service
-        paymentDataService.addData(paymentData);
+//        // Add data to the service
+//        paymentDataService.addData(paymentData);
+
+        // Use WebSocket handler to process and send message
+        dataWebSocketHandler.getPaymentAndSend(paymentData);
     }
 }
 

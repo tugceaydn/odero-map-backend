@@ -1,5 +1,6 @@
 package com.example.oderomapbackend;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -8,18 +9,26 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 
 @Configuration
 @EnableWebSocket
+@RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    private final PaymentDataService paymentDataService;
+//    private final PaymentDataService paymentDataService;
 
-    public WebSocketConfig(PaymentDataService paymentDataService) {
-        this.paymentDataService = paymentDataService;
-    }
+
+    private final DataWebSocketHandler dataWebSocketHandler;
+    private final MerchantWebSocketHandler merchantWebSocketHandler;
+
+//    public WebSocketConfig(PaymentDataService paymentDataService) {
+//        this.paymentDataService = paymentDataService;
+//    }
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(new DataWebSocketHandler(paymentDataService), "/data").setAllowedOrigins("*");
-        registry.addHandler(new MerchantWebSocketHandler(paymentDataService), "/merchantData").setAllowedOrigins("*");
+//        registry.addHandler( dataWebSocketHandler(paymentDataService), "/data").setAllowedOrigins("*");
+//        registry.addHandler( merchantWebSocketHandler(paymentDataService), "/merchantData").setAllowedOrigins("*");
+
+        registry.addHandler(dataWebSocketHandler, "/data").setAllowedOrigins("*");
+        registry.addHandler(merchantWebSocketHandler, "/merchantData").setAllowedOrigins("*");
     }
 }
 
