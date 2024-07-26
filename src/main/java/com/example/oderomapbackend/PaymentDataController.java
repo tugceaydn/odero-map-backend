@@ -11,6 +11,8 @@ public class PaymentDataController {
     private PaymentDataService paymentDataService;
     @Autowired
     private DataWebSocketHandler dataWebSocketHandler;
+    @Autowired
+    private MerchantWebSocketHandler merchantWebSocketHandler;
 
     @PostMapping
     public void receivePaymentData(@RequestBody PaymentDataRequest paymentDataRequest) {
@@ -33,6 +35,7 @@ public class PaymentDataController {
 
         // Use WebSocket handler to process and send message
         dataWebSocketHandler.getPaymentAndSend(paymentData);
+        merchantWebSocketHandler.sendSortedMerchantData();
     }
 }
 
