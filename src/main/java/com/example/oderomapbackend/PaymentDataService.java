@@ -24,7 +24,7 @@ public class PaymentDataService {
     private ConcurrentHashMap<Integer, PaymentDataEntry> dataMapHour = new ConcurrentHashMap<>(HOURSEGMENTS);
     private ConcurrentHashMap<Integer, PaymentDataEntry> dataMapDay = new ConcurrentHashMap<>(DAYSEGMENTS);
 
-    private ConcurrentHashMap<String, DoubleAdder> merchantTotals = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, ConcurrentHashMap<String, DoubleAdder>> merchantTotals = new ConcurrentHashMap<>();
 
     public PaymentDataService() {
         this.lastOneHourPaymentSum = new DoubleAdder();
@@ -64,7 +64,12 @@ public class PaymentDataService {
         paymentCounterHour.incrementAndGet();
         paymentCounterDay.incrementAndGet();
 
-        merchantTotals.computeIfAbsent(paymentData.getMerchantName(), k -> new DoubleAdder()).add(paymentData.getAmount());
+        String merchantName = paymentData.getMerchantName();
+        String subMerchantName = paymentData.getSubMerchantName();
+
+        merchantTotals.computeIfAbsent(merchantName, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(subMerchantName != null ? subMerchantName : "No SubMerchant", k -> new DoubleAdder())
+                .add(paymentData.getAmount());
     }
 
     public synchronized void cleanupOldData() {
@@ -106,10 +111,21 @@ public class PaymentDataService {
     public Map<String, Double> getSortedMerchantTotals() {
         return merchantTotals.entrySet()
                 .stream()
-                .sorted((entry1, entry2) -> Double.compare(entry2.getValue().sum(), entry1.getValue().sum()))
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
-                        entry -> entry.getValue().sum(),
+                        entry -> entry.getValue().values()
+                                .stream()
+                                .mapToDouble(DoubleAdder::sum)
+                                .sum(),
+                        (e1, e2) -> e1,
+                        LinkedHashMap::new
+                ))
+                .entrySet()
+                .stream()
+                .sorted((entry1, entry2) -> Double.compare(entry2.getValue(), entry1.getValue()))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
                         (e1, e2) -> e1,
                         LinkedHashMap::new
                 ));
