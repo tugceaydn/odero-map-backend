@@ -93,11 +93,15 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
         synchronized (paymentDataService) {
             try {
                 String city = provinces.get(random.nextInt(provinces.size()));
-                String merchant = merchants.get(random.nextInt(merchants.size()));
+                String merchantName = merchants.get(random.nextInt(merchants.size()));
+                String merchantId = "M-" + random.nextInt(1000); // Generating a random merchant ID
+                String subMerchantName = "Sub-" + random.nextInt(1000); // Generating a random sub-merchant name
+                String subMerchantId = "SM-" + random.nextInt(1000); // Generating a random sub-merchant ID
+                String ip = "192.168." + random.nextInt(256) + "." + random.nextInt(256); // Generating a random IP
                 double amount = random.nextDouble() * 1000; // Random amount between 0 and 1000
                 long timestamp = System.currentTimeMillis();
 
-                PaymentData paymentData1 = new PaymentData(city, merchant, amount, timestamp);
+                PaymentData paymentData1 = new PaymentData(amount, timestamp, city, merchantId, merchantName, subMerchantId, subMerchantName, ip);
                 paymentDataService.addData(paymentData1);
 
                 DataMessage dataMessage1 = new DataMessage(city, amount, timestamp,
@@ -106,16 +110,14 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
                         paymentDataService.getPaymentCounterDay().get(),
                         paymentDataService.getPaymentCounterHour().get());
 
-
-                PaymentData paymentData2 = new PaymentData(city, merchant, (amount + 100), timestamp);
+                PaymentData paymentData2 = new PaymentData(amount + 100, timestamp, city, merchantId, merchantName, subMerchantId, subMerchantName, ip);
                 paymentDataService.addData(paymentData2);
 
-                DataMessage dataMessage2 = new DataMessage(city,amount + 100, timestamp,
+                DataMessage dataMessage2 = new DataMessage(city, amount + 100, timestamp,
                         paymentDataService.getLastDayPaymentSum().sum(),
                         paymentDataService.getLastOneHourPaymentSum().sum(),
                         paymentDataService.getPaymentCounterDay().get(),
                         paymentDataService.getPaymentCounterHour().get());
-
 
                 String jsonMessage1 = objectMapper.writeValueAsString(dataMessage1);
                 System.out.println("Sending data: " + jsonMessage1); // Print to console
@@ -124,10 +126,11 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
                 String jsonMessage2 = objectMapper.writeValueAsString(dataMessage2);
                 System.out.println("Sending data: " + jsonMessage2); // Print to console
                 TextMessage textMessage2 = new TextMessage(jsonMessage2);
+
                 for (WebSocketSession session : sessions) {
                     if (session.isOpen()) {
                         session.sendMessage(textMessage1);
-                        //                    TimeUnit.SECONDS.sleep(1);
+                        // TimeUnit.SECONDS.sleep(1);
                         session.sendMessage(textMessage2);
                     }
                 }
@@ -136,6 +139,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
             }
         }
     }
+
 
     static class DataMessage {
         public String city;

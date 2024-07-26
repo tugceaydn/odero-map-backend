@@ -16,10 +16,14 @@ public class PaymentDataController {
 
         // Create PaymentData object from request
         PaymentData paymentData = new PaymentData(
-                paymentDataRequest.getCity(),
-                paymentDataRequest.getMerchantName(),
                 paymentDataRequest.getAmount(),
-                System.currentTimeMillis() // Use current time as timestamp
+                paymentDataRequest.getTimestamp(),
+                paymentDataRequest.getCity(),
+                paymentDataRequest.getMerchantId(),
+                paymentDataRequest.getMerchantName(),
+                paymentDataRequest.getMerchantId(),
+                paymentDataRequest.getMerchantName(),
+                paymentDataRequest.getIp()
         );
 
         // Add data to the service

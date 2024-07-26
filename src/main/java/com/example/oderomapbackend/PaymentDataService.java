@@ -64,7 +64,7 @@ public class PaymentDataService {
         paymentCounterHour.incrementAndGet();
         paymentCounterDay.incrementAndGet();
 
-        merchantTotals.computeIfAbsent(paymentData.getMerchant(), k -> new DoubleAdder()).add(paymentData.getAmount());
+        merchantTotals.computeIfAbsent(paymentData.getMerchantName(), k -> new DoubleAdder()).add(paymentData.getAmount());
     }
 
     public synchronized void cleanupOldData() {
