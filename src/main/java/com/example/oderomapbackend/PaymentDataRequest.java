@@ -5,6 +5,7 @@ import lombok.Data;
 @Data
 public class PaymentDataRequest {
     private double amount;
+    private long timestamp;
     private String city;
     private String merchantId;
     private String merchantName;
