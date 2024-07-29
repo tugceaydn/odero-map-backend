@@ -1,7 +1,8 @@
-package com.example.oderomapbackend;
+package com.example.oderomapbackend.config;
 
+import com.example.oderomapbackend.controller.DataWebSocketHandler;
+import com.example.oderomapbackend.controller.MerchantWebSocketHandler;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;

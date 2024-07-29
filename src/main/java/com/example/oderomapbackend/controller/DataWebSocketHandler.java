@@ -1,6 +1,7 @@
-package com.example.oderomapbackend;
+package com.example.oderomapbackend.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.oderomapbackend.service.PaymentDataService;
+import com.example.oderomapbackend.entity.PaymentData;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
