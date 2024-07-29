@@ -35,7 +35,22 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
+
         sessions.add(session);
+        Map<String, Double> sortedMerchantTotals = paymentDataService.getSortedMerchantTotals();
+
+        printSortedMerchantTotals(sortedMerchantTotals);
+        try {
+            String jsonMessage = objectMapper.writeValueAsString(sortedMerchantTotals);
+            TextMessage textMessage = new TextMessage(jsonMessage);
+            for (WebSocketSession mySession : sessions) {
+                if (mySession.isOpen()) {
+                    mySession.sendMessage(textMessage);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

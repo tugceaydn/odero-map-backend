@@ -25,8 +25,8 @@ public class PaymentDataController {
                 paymentDataRequest.getCity(),
                 paymentDataRequest.getMerchantId(),
                 paymentDataRequest.getMerchantName(),
-                paymentDataRequest.getMerchantId(),
-                paymentDataRequest.getMerchantName(),
+                paymentDataRequest.getSubMerchantId(),
+                paymentDataRequest.getSubMerchantName(),
                 paymentDataRequest.getIp()
         );
 

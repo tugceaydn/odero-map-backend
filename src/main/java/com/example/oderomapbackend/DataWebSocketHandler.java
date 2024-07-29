@@ -41,7 +41,39 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
+
         sessions.add(session);
+        try {
+            // Create a DataMessage object
+            DataMessage dataMessage = new DataMessage(
+                    0,
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    paymentDataService.getLastDayPaymentSum().sum(),
+                    paymentDataService.getLastOneHourPaymentSum().sum(),
+                    paymentDataService.getPaymentCounterDay().get(),
+                    paymentDataService.getPaymentCounterHour().get()
+            );
+
+            // Convert DataMessage to JSON
+            String jsonMessage = objectMapper.writeValueAsString(dataMessage);
+            TextMessage textMessage = new TextMessage(jsonMessage);
+
+            // Send message to all connected clients
+            for (WebSocketSession mySession : sessions) {
+                if (mySession.isOpen()) {
+                    mySession.sendMessage(textMessage);
+                }
+            }
+            System.out.println("Counter Day : " + paymentDataService.getPaymentCounterDay());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
