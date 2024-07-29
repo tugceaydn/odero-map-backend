@@ -4,6 +4,7 @@ import lombok.Data;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAdder;
@@ -68,8 +69,10 @@ public class PaymentDataService {
         String subMerchantName = paymentData.getSubMerchantName();
 
         merchantTotals.computeIfAbsent(merchantName, k -> new ConcurrentHashMap<>())
-                .computeIfAbsent(subMerchantName != null ? subMerchantName : "No SubMerchant", k -> new DoubleAdder())
+                .computeIfAbsent(!Objects.equals(subMerchantName, "") ? subMerchantName : merchantName, k -> new DoubleAdder())
                 .add(paymentData.getAmount());
+
+        System.out.println("merchant totals: " + merchantTotals);
     }
 
     public synchronized void cleanupOldData() {
