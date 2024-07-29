@@ -1,5 +1,7 @@
-package com.example.oderomapbackend;
+package com.example.oderomapbackend.service;
 
+import com.example.oderomapbackend.entity.PaymentData;
+import com.example.oderomapbackend.entity.PaymentDataEntry;
 import lombok.Data;
 import org.springframework.stereotype.Service;
 

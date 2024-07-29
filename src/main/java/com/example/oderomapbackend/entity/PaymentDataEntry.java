@@ -1,4 +1,4 @@
-package com.example.oderomapbackend;
+package com.example.oderomapbackend.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
