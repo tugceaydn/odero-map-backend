@@ -1,6 +1,7 @@
 package com.example.oderomapbackend.controller;
 
 import com.example.oderomapbackend.service.PaymentDataService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -9,6 +10,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -20,7 +22,7 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
 
     private final List<WebSocketSession> sessions = new CopyOnWriteArrayList<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
-
+    @Autowired
     private PaymentDataService paymentDataService;
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
@@ -38,9 +40,9 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) {
 
         sessions.add(session);
-        Map<String, Double> sortedMerchantTotals = paymentDataService.getSortedMerchantTotals();
+        Map<String, AbstractMap.SimpleEntry<Double, Integer>> sortedMerchantTotals = paymentDataService.getSortedMerchantTotals();
 
-        printSortedMerchantTotals(sortedMerchantTotals);
+//        printSortedMerchantTotals(sortedMerchantTotals);
         try {
             String jsonMessage = objectMapper.writeValueAsString(sortedMerchantTotals);
             TextMessage textMessage = new TextMessage(jsonMessage);
@@ -60,9 +62,9 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
     }
 
     public void sendSortedMerchantData() {
-        Map<String, Double> sortedMerchantTotals = paymentDataService.getSortedMerchantTotals();
+        Map<String, AbstractMap.SimpleEntry<Double, Integer>> sortedMerchantTotals = paymentDataService.getSortedMerchantTotals();
 
-        printSortedMerchantTotals(sortedMerchantTotals);
+//        printSortedMerchantTotals(sortedMerchantTotals);
         try {
             String jsonMessage = objectMapper.writeValueAsString(sortedMerchantTotals);
             TextMessage textMessage = new TextMessage(jsonMessage);
@@ -75,7 +77,9 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
             e.printStackTrace();
         }
     }
+    public void sendSortedSubMerchantData() {
 
+    }
     private void printSortedMerchantTotals(Map<String, Double> sortedMerchantTotals) {
         System.out.println("Sorted Merchant Totals:");
         sortedMerchantTotals.forEach((merchant, total) -> {
