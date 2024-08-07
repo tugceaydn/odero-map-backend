@@ -86,8 +86,8 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
 
         this.paymentDataService = paymentDataService;
 //        scheduler.scheduleAtFixedRate(this::generateAndSendData, 0, 200, TimeUnit.MILLISECONDS);
-//        scheduler.scheduleAtFixedRate(paymentDataService::cleanupOldData, 0, 5, TimeUnit.SECONDS);
-//        scheduler.scheduleAtFixedRate(paymentDataService::dailyCleanUp, 0, 10 * 1000, TimeUnit.MILLISECONDS); // 24 * 60 * 60 * 1000  //initaildelay: getInitialDelay olmalı
+        scheduler.scheduleAtFixedRate(paymentDataService::cleanupOldData, 0, 5, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(paymentDataService::dailyCleanUp, getInitialDelay(), 24 * 60 * 60 * 1000, TimeUnit.MILLISECONDS); // 24 * 60 * 60 * 1000  //initaildelay: getInitialDelay olmalı
     }
     private long getInitialDelay() {
         Calendar calendar = Calendar.getInstance();

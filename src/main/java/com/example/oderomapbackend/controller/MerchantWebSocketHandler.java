@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.AbstractMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -43,13 +44,16 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
         Map<String, AbstractMap.SimpleEntry<Double, Integer>> sortedMerchantTotals = paymentDataService.getSortedMerchantTotals();
 
 //        printSortedMerchantTotals(sortedMerchantTotals);
+        System.out.println("Sorted Merchant Data: " + sortedMerchantTotals);
         try {
-            String jsonMessage = objectMapper.writeValueAsString(sortedMerchantTotals);
+            Map<String, Object> message = new HashMap<>();
+            message.put("isSubMerchantData", false);
+            message.put("totals", sortedMerchantTotals);
+
+            String jsonMessage = objectMapper.writeValueAsString(message);
             TextMessage textMessage = new TextMessage(jsonMessage);
-            for (WebSocketSession mySession : sessions) {
-                if (mySession.isOpen()) {
-                    mySession.sendMessage(textMessage);
-                }
+            if (session.isOpen()) {
+                session.sendMessage(textMessage);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -60,13 +64,26 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessions.remove(session);
     }
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        String payload = message.getPayload();
+        System.out.println("Received message handleText: " + payload);
 
+        // Assuming the payload is a simple string with the merchant name for simplicity
+        // Adjust this logic if you are sending more complex JSON messages
+        sendSortedSubMerchantData(payload);
+    }
     public void sendSortedMerchantData() {
         Map<String, AbstractMap.SimpleEntry<Double, Integer>> sortedMerchantTotals = paymentDataService.getSortedMerchantTotals();
 
 //        printSortedMerchantTotals(sortedMerchantTotals);
+        System.out.println("Sorted Merchant Data: " + sortedMerchantTotals);
         try {
-            String jsonMessage = objectMapper.writeValueAsString(sortedMerchantTotals);
+            Map<String, Object> message = new HashMap<>();
+            message.put("isSubMerchantData", false);
+            message.put("totals", sortedMerchantTotals);
+
+            String jsonMessage = objectMapper.writeValueAsString(message);
             TextMessage textMessage = new TextMessage(jsonMessage);
             for (WebSocketSession session : sessions) {
                 if (session.isOpen()) {
@@ -77,9 +94,29 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
             e.printStackTrace();
         }
     }
-    public void sendSortedSubMerchantData() {
+    public void sendSortedSubMerchantData(String subMerchantId) {
+        Map<String, AbstractMap.SimpleEntry<Double, Integer>> sortedSubMerchantTotals = paymentDataService.getSortedSubMerchantTotals(subMerchantId);
 
+//        printSortedMerchantTotals(sortedMerchantTotals);
+        System.out.println("Sorted Sub Merchant Data: " + sortedSubMerchantTotals);
+        try {
+            Map<String, Object> message = new HashMap<>();
+            message.put("isSubMerchantData", true);
+            message.put("merchant", subMerchantId);
+            message.put("totals", sortedSubMerchantTotals);
+
+            String jsonMessage = objectMapper.writeValueAsString(message);
+            TextMessage textMessage = new TextMessage(jsonMessage);
+            for (WebSocketSession session : sessions) {
+                if (session.isOpen()) {
+                    session.sendMessage(textMessage);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
+
     private void printSortedMerchantTotals(Map<String, Double> sortedMerchantTotals) {
         System.out.println("Sorted Merchant Totals:");
         sortedMerchantTotals.forEach((merchant, total) -> {

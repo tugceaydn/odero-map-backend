@@ -7,14 +7,11 @@ import lombok.Data;
 import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.stereotype.Service;
 
-import java.util.AbstractMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAdder;
 import java.util.stream.Collectors;
-import java.util.LinkedHashMap;
 
 @Data
 @Service
@@ -113,6 +110,7 @@ public class PaymentDataService {
             }
         }
         System.out.println("----hour map after delete----");
+        System.out.println(dataMapHour);
     }
 
     public synchronized void dailyCleanUp(){
@@ -163,7 +161,33 @@ public class PaymentDataService {
                         LinkedHashMap::new
                 ));
     }
-//    public Map<String, AbstractMap.SimpleEntry<Double, Integer>> getSortedSubMerchantTotals() {
-//
-//    }
+    public Map<String, AbstractMap.SimpleEntry<Double, Integer>> getSortedSubMerchantTotals(String merchantName) {
+        // Find the submerchants for the given merchant name
+        ConcurrentHashMap<String, SubMerchantData> subMerchants = merchantTotals.get(merchantName);
+
+        if (subMerchants == null) {
+            // Return an empty map if the merchant does not exist
+            return Collections.emptyMap();
+        }
+
+        // Collect the submerchant data into a map with submerchant name as the key
+        return subMerchants.entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.getValue().getName(),
+                        entry -> new AbstractMap.SimpleEntry<>(entry.getValue().getAmount(), entry.getValue().getCount()),
+                        (e1, e2) -> e1,
+                        LinkedHashMap::new
+                ))
+                .entrySet()
+                .stream()
+                .sorted((entry1, entry2) -> Double.compare(entry2.getValue().getKey(), entry1.getValue().getKey()))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (e1, e2) -> e1,
+                        LinkedHashMap::new
+                ));
+    }
+
 }
