@@ -9,7 +9,9 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.*;
 @Component
@@ -18,7 +20,6 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
     private final List<WebSocketSession> sessions = new CopyOnWriteArrayList<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Random random = new Random();
-
     private final PaymentDataService paymentDataService;
 
 
@@ -60,17 +61,15 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
                     paymentDataService.getPaymentCounterDay().get(),
                     paymentDataService.getPaymentCounterHour().get()
             );
-
             // Convert DataMessage to JSON
             String jsonMessage = objectMapper.writeValueAsString(dataMessage);
             TextMessage textMessage = new TextMessage(jsonMessage);
 
-            // Send message to all connected clients
-            for (WebSocketSession mySession : sessions) {
-                if (mySession.isOpen()) {
-                    mySession.sendMessage(textMessage);
-                }
+            // Send message to connected client
+            if (session.isOpen()) {
+                session.sendMessage(textMessage);
             }
+
             System.out.println("Counter Day : " + paymentDataService.getPaymentCounterDay());
         } catch (IOException e) {
             e.printStackTrace();
@@ -86,7 +85,7 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
 
         this.paymentDataService = paymentDataService;
 //        scheduler.scheduleAtFixedRate(this::generateAndSendData, 0, 200, TimeUnit.MILLISECONDS);
-        scheduler.scheduleAtFixedRate(paymentDataService::cleanupOldData, 0, 5, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::cleanupAndNotify, 0, 5, TimeUnit.SECONDS);
         scheduler.scheduleAtFixedRate(paymentDataService::dailyCleanUp, getInitialDelay(), 24 * 60 * 60 * 1000, TimeUnit.MILLISECONDS); // 24 * 60 * 60 * 1000  //initaildelay: getInitialDelay olmalı
     }
     private long getInitialDelay() {
@@ -119,42 +118,82 @@ public class DataWebSocketHandler extends TextWebSocketHandler {
 //                .toEpochMilli();
 //        return midnightMillis - currentMillis;
 //    }
-public void getPaymentAndSend(PaymentData paymentData) {
-    // Add data to the service
-    paymentDataService.addData(paymentData);
+    public void sendMessageWithPayment(PaymentData paymentData) {
+        // Add data to the service
+        paymentDataService.addData(paymentData);
 
-    try {
-        // Create a DataMessage object
-        DataMessage dataMessage = new DataMessage(
-                paymentData.getAmount(),
-                paymentData.getTimestamp(),
-                paymentData.getCity(),
-                paymentData.getMerchantId(),
-                paymentData.getMerchantName(),
-                paymentData.getSubMerchantId(),
-                paymentData.getSubMerchantName(),
-                paymentData.getIp(),
-                paymentDataService.getLastDayPaymentSum().sum(),
-                paymentDataService.getLastOneHourPaymentSum().sum(),
-                paymentDataService.getPaymentCounterDay().get(),
-                paymentDataService.getPaymentCounterHour().get()
-        );
+        try {
+            // Create a DataMessage object
+            DataMessage dataMessage = new DataMessage(
+                    paymentData.getAmount(),
+                    paymentData.getTimestamp().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    paymentData.getCity(),
+                    paymentData.getMerchantId(),
+                    paymentData.getMerchantName(),
+                    paymentData.getSubMerchantId(),
+                    paymentData.getSubMerchantName(),
+                    paymentData.getIp(),
+                    paymentDataService.getLastDayPaymentSum().sum(),
+                    paymentDataService.getLastOneHourPaymentSum().sum(),
+                    paymentDataService.getPaymentCounterDay().get(),
+                    paymentDataService.getPaymentCounterHour().get()
+            );
 
-        // Convert DataMessage to JSON
-        String jsonMessage = objectMapper.writeValueAsString(dataMessage);
-        TextMessage textMessage = new TextMessage(jsonMessage);
+            // Convert DataMessage to JSON
+            String jsonMessage = objectMapper.writeValueAsString(dataMessage);
+            TextMessage textMessage = new TextMessage(jsonMessage);
 
-        // Send message to all connected clients
-        for (WebSocketSession session : sessions) {
-            if (session.isOpen()) {
-                session.sendMessage(textMessage);
+            // Send message to all connected clients
+            for (WebSocketSession session : sessions) {
+                if (session.isOpen()) {
+                    session.sendMessage(textMessage);
+                }
             }
+            System.out.println("Counter Day : " + paymentDataService.getPaymentCounterDay());
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-        System.out.println("Counter Day : " + paymentDataService.getPaymentCounterDay());
-    } catch (IOException e) {
-        e.printStackTrace();
     }
-}
+    public void sendMessageWithoutPayment() {
+        try {
+            // Create a DataMessage object
+            DataMessage dataMessage = new DataMessage(
+                    0,
+                    0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    paymentDataService.getLastDayPaymentSum().sum(),
+                    paymentDataService.getLastOneHourPaymentSum().sum(),
+                    paymentDataService.getPaymentCounterDay().get(),
+                    paymentDataService.getPaymentCounterHour().get()
+            );
+
+            // Convert DataMessage to JSON
+            String jsonMessage = objectMapper.writeValueAsString(dataMessage);
+            TextMessage textMessage = new TextMessage(jsonMessage);
+
+            // Send message to all connected clients
+            for (WebSocketSession mySession : sessions) {
+                if (mySession.isOpen()) {
+                    mySession.sendMessage(textMessage);
+                }
+            }
+            System.out.println("Counter Day : " + paymentDataService.getPaymentCounterDay());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    private void cleanupAndNotify() {
+        paymentDataService.cleanupOldData();
+        if (paymentDataService.isDataDeleted()) {
+            sendMessageWithoutPayment();
+            paymentDataService.resetDataDeleted();
+        }
+    }
 
 //    private void generateAndSendData() {
 //        synchronized (paymentDataService) {
