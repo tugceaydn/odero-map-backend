@@ -7,6 +7,8 @@ import lombok.Data;
 import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -22,14 +24,14 @@ public class PaymentDataService {
     private AtomicInteger paymentCounterHour;
     private AtomicInteger paymentCounterDay;
 
-    private static final int HOURSEGMENTS = 5;
+    private static final int HOURSEGMENTS = 3600;
     private static final int DAYSEGMENTS = 15;
     private ConcurrentHashMap<Integer, PaymentDataEntry> dataMapHour = new ConcurrentHashMap<>(HOURSEGMENTS);
     private ConcurrentHashMap<Integer, PaymentDataEntry> dataMapDay = new ConcurrentHashMap<>(DAYSEGMENTS);
 
 //    private ConcurrentHashMap<String, ConcurrentHashMap<String, DoubleAdder>> merchantTotals = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, ConcurrentHashMap<String, SubMerchantData>> merchantTotals = new ConcurrentHashMap<>();
-
+    private boolean dataDeleted = false;
     public PaymentDataService() {
         this.lastOneHourPaymentSum = new DoubleAdder();
         this.lastDayPaymentSum = new DoubleAdder();
@@ -40,31 +42,36 @@ public class PaymentDataService {
 
     public synchronized void addData(PaymentData paymentData) {
         System.out.println("Running adding..."); // For debugging
-        int hourSegment = getHourSegment(paymentData.getTimestamp());
-
+        int hourSegment = getHourSegment(paymentData.getTimestamp()); // find the segment of the payment
+        long milisecondTimestamp = paymentData.getTimestamp().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
         PaymentDataEntry existingDataHour = dataMapHour.get(hourSegment);
+        long currentTime = System.currentTimeMillis();
 
-        if (existingDataHour != null && (existingDataHour.getTimestamp() / 1000) == (paymentData.getTimestamp() / 1000)) {
-            dataMapHour.put(hourSegment, new PaymentDataEntry(
-                    existingDataHour.getAmount() + paymentData.getAmount(),
-                    existingDataHour.getTimestamp(),
-                    existingDataHour.getCount() + 1
-            ));
-        } else {
-            if(existingDataHour != null) {
-                lastOneHourPaymentSum.add(-existingDataHour.getAmount());
-                paymentCounterHour.addAndGet(-existingDataHour.getCount());
+        if(currentTime - milisecondTimestamp < HOURSEGMENTS * 1000 ){
+            System.out.println("TRUEEEEEE");
+            if (existingDataHour != null && (existingDataHour.getTimestamp() / 1000) == (milisecondTimestamp / 1000)) {
+                dataMapHour.put(hourSegment, new PaymentDataEntry(
+                        existingDataHour.getAmount() + paymentData.getAmount(),
+                        existingDataHour.getTimestamp(),
+                        existingDataHour.getCount() + 1
+                ));
+            } else {
+                if(existingDataHour != null) {
+                    lastOneHourPaymentSum.add(-existingDataHour.getAmount());
+                    paymentCounterHour.addAndGet(-existingDataHour.getCount());
+                }
+                dataMapHour.put(hourSegment, new PaymentDataEntry(
+                        paymentData.getAmount(),
+                        paymentData.getTimestamp().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        1
+                ));
             }
-            dataMapHour.put(hourSegment, new PaymentDataEntry(
-                    paymentData.getAmount(),
-                    paymentData.getTimestamp(),
-                    1
-            ));
+            lastOneHourPaymentSum.add(paymentData.getAmount());
+            paymentCounterHour.incrementAndGet();
         }
 
-        lastOneHourPaymentSum.add(paymentData.getAmount());
         lastDayPaymentSum.add(paymentData.getAmount());
-        paymentCounterHour.incrementAndGet();
+
         paymentCounterDay.incrementAndGet();
 
         String merchantName = paymentData.getMerchantName();
@@ -99,14 +106,13 @@ public class PaymentDataService {
         System.out.println("Running cleanupOldData..."); // For debugging
 
         for (int i = 0; i < HOURSEGMENTS; i++) {
-
-
             PaymentDataEntry dataHour = dataMapHour.get(i);
             if (dataHour != null && (currentTime - dataHour.getTimestamp()) > HOURSEGMENTS * 1000) {
                 System.out.println("Cleaning up hour segment: " + i + " amount " + dataHour.getAmount()); // For debugging
                 lastOneHourPaymentSum.add(-dataHour.getAmount());
                 paymentCounterHour.addAndGet(-dataHour.getCount());
                 dataMapHour.remove(i);
+                dataDeleted = true; // Set the flag to true if data was deleted
             }
         }
         System.out.println("----hour map after delete----");
@@ -127,8 +133,9 @@ public class PaymentDataService {
         System.out.println("lastday payment counter after clean: " + paymentCounterDay.get());
 
     }
-    private int getHourSegment(long timestamp) {
-        return (int) ((timestamp / 1000) % HOURSEGMENTS);
+    private int getHourSegment(LocalDateTime timestamp) {
+        long milisTimestamp = timestamp.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        return (int) ((milisTimestamp / 1000) % HOURSEGMENTS);
     }
 
 
@@ -190,4 +197,7 @@ public class PaymentDataService {
                 ));
     }
 
+    public void resetDataDeleted() {
+        dataDeleted = false;
+    }
 }

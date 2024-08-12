@@ -10,10 +10,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.util.AbstractMap;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -46,15 +43,25 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
 //        printSortedMerchantTotals(sortedMerchantTotals);
         System.out.println("Sorted Merchant Data: " + sortedMerchantTotals);
         try {
+            List<Map<String, Object>> merchantsData = new ArrayList<>();
+            for (String merchant : sortedMerchantTotals.keySet()) {
+                Map<String, Object> merchantData = new HashMap<>();
+                merchantData.put("merchantName", merchant);
+                merchantData.put("totalAmount", sortedMerchantTotals.get(merchant).getKey());
+                merchantData.put("totalCount", sortedMerchantTotals.get(merchant).getValue());
+                merchantData.put("hasSubMerchants", hasSubMerchants(merchant));
+                merchantsData.add(merchantData);
+            }
+
             Map<String, Object> message = new HashMap<>();
             message.put("isSubMerchantData", false);
-            message.put("totals", sortedMerchantTotals);
-
+            message.put("totals", merchantsData);
+            // message.put // should say if merchant has submerchants or not
+            System.out.println("Sorted Merchant Message: " + message);
             String jsonMessage = objectMapper.writeValueAsString(message);
             TextMessage textMessage = new TextMessage(jsonMessage);
-            if (session.isOpen()) {
-                session.sendMessage(textMessage);
-            }
+            if (session.isOpen()) {session.sendMessage(textMessage);}
+
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -79,10 +86,21 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
 //        printSortedMerchantTotals(sortedMerchantTotals);
         System.out.println("Sorted Merchant Data: " + sortedMerchantTotals);
         try {
+            List<Map<String, Object>> merchantsData = new ArrayList<>();
+            for (String merchant : sortedMerchantTotals.keySet()) {
+                Map<String, Object> merchantData = new HashMap<>();
+                merchantData.put("merchantName", merchant);
+                merchantData.put("totalAmount", sortedMerchantTotals.get(merchant).getKey());
+                merchantData.put("totalCount", sortedMerchantTotals.get(merchant).getValue());
+                merchantData.put("hasSubMerchants", hasSubMerchants(merchant));
+                merchantsData.add(merchantData);
+            }
+
             Map<String, Object> message = new HashMap<>();
             message.put("isSubMerchantData", false);
-            message.put("totals", sortedMerchantTotals);
-
+            message.put("totals", merchantsData);
+            // message.put // should say if merchant has submerchants or not
+            System.out.println("Sorted Merchant Message: " + message);
             String jsonMessage = objectMapper.writeValueAsString(message);
             TextMessage textMessage = new TextMessage(jsonMessage);
             for (WebSocketSession session : sessions) {
@@ -94,16 +112,34 @@ public class MerchantWebSocketHandler extends TextWebSocketHandler {
             e.printStackTrace();
         }
     }
+    private boolean hasSubMerchants(String merchant) {
+        Map<String, AbstractMap.SimpleEntry<Double, Integer>> subMerchantTotals = paymentDataService.getSortedSubMerchantTotals(merchant);
+        if (subMerchantTotals.size() == 1) {
+            String subMerchantName = subMerchantTotals.keySet().iterator().next();
+            return !subMerchantName.equals(merchant);
+        }
+        return subMerchantTotals.size() > 1;
+    }
+
     public void sendSortedSubMerchantData(String subMerchantId) {
         Map<String, AbstractMap.SimpleEntry<Double, Integer>> sortedSubMerchantTotals = paymentDataService.getSortedSubMerchantTotals(subMerchantId);
 
 //        printSortedMerchantTotals(sortedMerchantTotals);
         System.out.println("Sorted Sub Merchant Data: " + sortedSubMerchantTotals);
         try {
+            List<Map<String, Object>> merchantsData = new ArrayList<>();
+            for (String merchant : sortedSubMerchantTotals.keySet()) {
+                Map<String, Object> merchantData = new HashMap<>();
+                merchantData.put("merchantName", merchant);
+                merchantData.put("totalAmount", sortedSubMerchantTotals.get(merchant).getKey());
+                merchantData.put("totalCount", sortedSubMerchantTotals.get(merchant).getValue());
+                merchantData.put("hasSubMerchants", false);
+                merchantsData.add(merchantData);
+            }
             Map<String, Object> message = new HashMap<>();
             message.put("isSubMerchantData", true);
             message.put("merchant", subMerchantId);
-            message.put("totals", sortedSubMerchantTotals);
+            message.put("totals", merchantsData);
 
             String jsonMessage = objectMapper.writeValueAsString(message);
             TextMessage textMessage = new TextMessage(jsonMessage);
